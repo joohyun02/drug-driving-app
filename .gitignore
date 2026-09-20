@@ -1,1 +1,8 @@
-: venv/ frontend-react/node_modules/ frontend-react/.env __pycache__/ *.pyc archive/
+@"
+venv/
+frontend-react/node_modules/
+frontend-react/.env
+__pycache__/
+*.pyc
+archive/
+"@ | Set-Content .gitignore
