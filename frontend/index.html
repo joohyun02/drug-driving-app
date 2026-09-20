@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<!--
+  약 체크 - 약물운전 확인 서비스 (로컬 프로토타입)
+
+  사용법
+  1) backend 폴더에서 서버 실행:  uvicorn main:app --reload
+     (기본 주소: http://127.0.0.1:8000)
+  2) 이 파일을 더블클릭해서 브라우저로 열기
+     - 서버 주소나 포트가 다르면 아래 <script>의 API_BASE 값을 수정하세요.
+  3) 만약 검색이 "서버에 연결할 수 없습니다" 오류를 계속 낸다면:
+     - uvicorn이 정말 실행 중인지 터미널 확인
+     - http://127.0.0.1:8000/docs 가 브라우저에서 직접 열리는지 확인
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>약 체크 - 약물운전 확인 서비스 (로컬 테스트)</title>
+<style>
+  :root{
+    --bg:#f7f8fa;
+    --surface:#ffffff;
+    --surface-2:#f1f3f6;
+    --border:#e2e5ea;
+    --text:#1f2328;
+    --text-secondary:#4b5563;
+    --text-muted:#8b93a1;
+    --radius:10px;
+
+    --l3-bg:#fde2e2; --l3-text:#b3261e;
+    --l2-bg:#ffe6cc; --l2-text:#b1560f;
+    --l1-bg:#fdf1c6; --l1-text:#8a6d1a;
+    --l0-bg:#e9edf3; --l0-text:#4b5768;
+    --none-bg:#eef0f3; --none-text:#8b93a1;
+    --herb-bg:#e3edf7; --herb-text:#2f5f8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+    padding-bottom:180px; /* 하단 고정 면책 문구 공간 확보 */
+  }
+  .app{
+    max-width:480px;
+    margin:0 auto;
+    padding:24px 16px 40px;
+  }
+  header h1{
+    font-size:19px;
+    margin:0 0 4px;
+  }
+  header p{
+    font-size:13px;
+    color:var(--text-muted);
+    margin:0 0 20px;
+  }
+  .search-wrap{ margin-bottom:16px; }
+  #searchInput{
+    width:100%;
+    padding:12px 14px;
+    font-size:15px;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    background:var(--surface);
+    outline:none;
+  }
+  #searchInput:focus{ border-color:#9aa5b1; }
+  .narcotics-note{
+    font-size:11.5px;
+    color:var(--text-muted);
+    margin:8px 2px 0;
+  }
+  .muted{ font-size:13px; color:var(--text-muted); }
+  .error-box{
+    font-size:13px;
+    color:#b3261e;
+    background:#fdecec;
+    border-radius:var(--radius);
+    padding:12px 14px;
+    line-height:1.5;
+  }
+  .err-detail{ font-size:11px; color:#c46a63; }
+
+  .result-list{ display:flex; flex-direction:column; gap:6px; margin-bottom:18px; }
+  .result-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    width:100%;
+    text-align:left;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:10px 12px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .result-item:hover{ background:var(--surface-2); }
+  .result-main{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .result-name{ font-size:14.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .result-company{ font-size:11.5px; color:var(--text-muted); }
+
+  .badge{
+    font-size:12px;
+    font-weight:600;
+    padding:4px 10px;
+    border-radius:999px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .badge-lg{ font-size:13px; padding:5px 12px; border-radius:8px; display:inline-block; }
+
+  .detail-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+  }
+  .detail-name{ font-size:16px; font-weight:600; margin:0 0 2px; }
+  .detail-company{ font-size:12px; color:var(--text-muted); margin:0 0 10px; }
+  .source-note{ font-size:11.5px; color:var(--text-muted); margin:6px 0 0; }
+
+  .ingredient-block{ border-top:1px solid var(--border); margin-top:14px; padding-top:12px; }
+  .block-title{ font-size:12px; color:var(--text-secondary); margin:0 0 6px; font-weight:600; }
+  .ingredient-row{ font-size:13.5px; margin:0 0 4px; }
+  .muted-inline{ color:var(--text-muted); font-size:12px; }
+
+  .warning-block{
+    background:var(--surface-2);
+    border-radius:var(--radius);
+    padding:10px 12px;
+    margin-top:14px;
+  }
+  .warning-text{ font-size:13.5px; line-height:1.6; margin:0 0 6px; }
+  .warning-source{ font-size:11px; color:var(--text-muted); margin:0; }
+
+  footer.disclaimer{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    background:var(--surface);
+    border-top:1px solid var(--border);
+    padding:12px 16px;
+    max-width:480px;
+    margin:0 auto;
+  }
+  footer.disclaimer p{
+    font-size:11px;
+    color:var(--text-muted);
+    line-height:1.5;
+    margin:0 0 6px;
+  }
+  #legalToggle{
+    font-size:11.5px;
+    color:var(--text-secondary);
+    background:none;
+    border:none;
+    padding:0;
+    text-decoration:underline;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .legal-panel{
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px solid var(--border);
+    max-height:160px;
+    overflow-y:auto;
+  }
+  .legal-panel p{ font-size:11px; color:var(--text-secondary); line-height:1.6; margin:0 0 6px; }
+  .legal-panel a{ color:#3b5bdb; }
+  .legal-panel .cite{ font-size:10px; color:var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>약 체크</h1>
+      <p>약 이름으로 운전 시 주의사항을 확인해보세요</p>
+    </header>
+
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="약 이름을 입력하세요 (예: 판콜, 타이레놀)" autocomplete="off" />
+      <p class="narcotics-note">마약류(향정신성의약품 포함)는 검색 대상에 포함되지 않습니다.</p>
+    </div>
+
+    <div id="resultList" class="result-list"></div>
+    <div id="detailView"></div>
+  </div>
+
+  <footer class="disclaimer">
+    <p>
+      이 서비스가 제공하는 등급 및 경고문구는 참고용 정보이며 공식 의학적 조언이나 법적 판단이 아닙니다.
+      등급은 대한약사회 참고자료를 기반으로 하며 공식 가이드라인이 아닙니다.
+      실제 운전 가능 여부는 복용 후 본인의 상태와 관련 법령을 기준으로 판단되므로, 필요 시 의사·약사와 상담하시기 바랍니다.
+    </p>
+    <button id="legalToggle">법적 근거 자세히 보기</button>
+    <div id="legalPanel" class="legal-panel" hidden>
+      <p>
+        도로교통법 제45조는 음주 상태 외에도 과로·질병·약물 등의 영향으로 정상적인 운전이 어려운 상태에서
+        운전하는 것을 금지하고 있습니다. 즉 처벌 여부는 복용한 약의 종류가 아니라, 복용 후 실제 운전자의
+        상태를 기준으로 판단됩니다.
+      </p>
+      <p>
+        2026년 4월 2일 시행된 개정 도로교통법에 따라 약물운전 처벌 기준이 기존 3년 이하 징역 또는
+        1천만 원 이하 벌금에서 5년 이하 징역 또는 2천만 원 이하 벌금으로 강화되었고, 측정 불응죄도
+        신설되었습니다.
+      </p>
+      <p class="cite">
+        출처: 국가법령정보센터 · <a href="https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EB%8F%84%EB%A1%9C%EA%B5%90%ED%86%B5%EB%B2%95" target="_blank" rel="noopener">도로교통법 전문 보기</a>
+        (접속 후 제45조 검색)
+      </p>
+      <p class="cite">
+        출처: 대한민국 정책브리핑, "도로교통법령, 2026년에 이렇게 달라집니다" ·
+        <a href="https://www.korea.kr/news/policyNewsView.do?newsId=148957500" target="_blank" rel="noopener">기사 보기</a>
+      </p>
+    </div>
+  </footer>
+
+<script>
+  // ⚠ FastAPI 서버 주소. 포트가 다르면 여기만 바꾸면 됩니다.
+  const API_BASE = 'http://127.0.0.1:8000';
+
+  const searchInput = document.getElementById('searchInput');
+  const resultList = document.getElementById('resultList');
+  const detailView = document.getElementById('detailView');
+
+  let debounceTimer = null;
+  searchInput.addEventListener('input', (e) => {
+    clearTimeout(debounceTimer);
+    const q = e.target.value.trim();
+    detailView.innerHTML = '';
+    if (!q) { resultList.innerHTML = ''; return; }
+    debounceTimer = setTimeout(() => runSearch(q), 300);
+  });
+
+  async function runSearch(q) {
+    resultList.innerHTML = '<p class="muted">검색 중...</p>';
+    try {
+      const res = await fetch(`${API_BASE}/search?name=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error('서버 응답 오류 (status ' + res.status + ')');
+      const data = await res.json();
+      renderResultList(data.results);
+    } catch (err) {
+      resultList.innerHTML =
+        '<p class="error-box">서버에 연결할 수 없습니다. 로컬 FastAPI 서버(uvicorn main:app --reload)가 ' +
+        '실행 중인지, 주소(' + API_BASE + ')가 맞는지 확인해주세요.' +
+        '<br><span class="err-detail">' + escapeHtml(String(err.message || err)) + '</span></p>';
+    }
+  }
+
+  // DB의 level 컬럼이 숫자(1)가 아니라 문자열('Level 1')로 들어있는 경우가
+  // 확인되어, 어떤 형태로 오든 실제 숫자만 뽑아내도록 방어적으로 처리합니다.
+  function normalizeLevel(raw) {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number' && !Number.isNaN(raw)) return raw;
+    const match = String(raw).match(/\d+/);
+    return match ? parseInt(match[0], 10) : null;
+  }
+
+  function levelBadge(rawLevel) {
+    const level = normalizeLevel(rawLevel);
+    if (level === null) {
+      return { bg: 'var(--none-bg)', text: 'var(--none-text)', label: '확인된 성분 없음' };
+    }
+    const map = {
+      0: { bg: 'var(--l0-bg)', text: 'var(--l0-text)', label: 'Level 0' },
+      1: { bg: 'var(--l1-bg)', text: 'var(--l1-text)', label: 'Level 1' },
+      2: { bg: 'var(--l2-bg)', text: 'var(--l2-text)', label: 'Level 2' },
+      3: { bg: 'var(--l3-bg)', text: 'var(--l3-text)', label: 'Level 3' },
+    };
+    return map[level] || { bg: 'var(--none-bg)', text: 'var(--none-text)', label: 'Level ' + level };
+  }
+
+  // 우황청심원류: 여러 한약재 성분으로 구성되어 386개 서양의약품 성분 기준으로는
+  // 매칭 대상이 아님. 제품명에 이 패턴이 포함되고 매칭된 성분이 없으면
+  // "확인된 성분 없음" 대신 전용 안내를 보여줌.
+  // ※ 이름 표기가 다른 유사 한약재 복합제가 더 있다면 이 배열에 추가하면 됩니다.
+  const HERBAL_COMPLEX_PATTERNS = ['우황청심원'];
+  function isHerbalComplex(name) {
+    if (!name) return false;
+    return HERBAL_COMPLEX_PATTERNS.some((p) => name.includes(p));
+  }
+
+  function renderResultList(results) {
+    if (!results.length) {
+      resultList.innerHTML = '<p class="muted">검색 결과가 없습니다. 다른 이름으로 검색해보세요.</p>';
+      return;
+    }
+    resultList.innerHTML = '';
+    results.forEach((p) => {
+      const level = normalizeLevel(p.top_level);
+      const isHerbal = isHerbalComplex(p.product_name) && level === null;
+      const badge = isHerbal
+        ? { bg: 'var(--herb-bg)', text: 'var(--herb-text)', label: '한약재 복합제' }
+        : levelBadge(level);
+      const item = document.createElement('button');
+      item.className = 'result-item';
+      item.innerHTML =
+        '<span class="result-main">' +
+          '<span class="result-name">' + escapeHtml(p.product_name) + '</span>' +
+          '<span class="result-company">' + escapeHtml(p.company_name || '') + '</span>' +
+        '</span>' +
+        '<span class="badge" style="background:' + badge.bg + ';color:' + badge.text + '">' + badge.label + '</span>';
+      item.addEventListener('click', () => loadDetail(p.item_seq));
+      resultList.appendChild(item);
+    });
+  }
+
+  async function loadDetail(itemSeq) {
+    detailView.innerHTML = '<p class="muted">불러오는 중...</p>';
+    try {
+      const res = await fetch(`${API_BASE}/product/${encodeURIComponent(itemSeq)}`);
+      if (!res.ok) throw new Error('서버 응답 오류 (status ' + res.status + ')');
+      const d = await res.json();
+      renderDetail(d);
+    } catch (err) {
+      detailView.innerHTML =
+        '<p class="error-box">상세 정보를 불러오지 못했습니다.' +
+        '<br><span class="err-detail">' + escapeHtml(String(err.message || err)) + '</span></p>';
+    }
+  }
+
+  function renderDetail(d) {
+    const levels = d.matched_ingredients
+      .map((i) => normalizeLevel(i.level))
+      .filter((lv) => lv !== null);
+    const topLevel = levels.length ? Math.max(...levels) : null;
+    const hasIngredients = d.matched_ingredients.length > 0;
+    const isHerbal = isHerbalComplex(d.product_name) && !hasIngredients;
+    const badge = isHerbal
+      ? { bg: 'var(--herb-bg)', text: 'var(--herb-text)', label: '한약재 복합제' }
+      : levelBadge(topLevel);
+
+    let html = '<div class="detail-card">';
+    html += '<p class="detail-name">' + escapeHtml(d.product_name) + '</p>';
+    html += '<p class="detail-company">' + escapeHtml(d.company_name || '') + '</p>';
+    html += '<span class="badge badge-lg" style="background:' + badge.bg + ';color:' + badge.text + '">' +
+              (hasIngredients ? '운전 주의 확인됨 · ' + badge.label : badge.label) +
+            '</span>';
+    if (hasIngredients) {
+      html += '<p class="source-note">등급 출처: 대한약사회 참고자료</p>';
+    }
+
+    if (isHerbal) {
+      html += '<p class="muted" style="margin-top:14px;">' +
+              '한약재 성분으로 구성되어 있어 386개 성분 기준 개별 평가 대상이 아닙니다. ' +
+              '복용 전 첨부문서의 주의사항을 확인하시거나 약사와 상담하시기 바랍니다.' +
+              '</p>';
+    } else if (hasIngredients) {
+      html += '<div class="ingredient-block"><p class="block-title">확인된 성분</p>';
+      d.matched_ingredients.forEach((ing) => {
+        const lv = normalizeLevel(ing.level);
+        html += '<p class="ingredient-row">· ' + escapeHtml(ing.name) +
+                ' <span class="muted-inline">(Level ' + (lv === null ? '?' : lv) +
+                (ing.matched_via_english ? ' · 영문 성분명 매칭' : '') + ')</span></p>';
+      });
+      html += '</div>';
+    }
+
+    if (d.warning_text) {
+      html += '<div class="warning-block">';
+      html += '<p class="warning-text">"' + escapeHtml(d.warning_text) + '"</p>';
+      html += '<p class="warning-source">출처: ' + escapeHtml(d.warning_source || '미상') + '</p>';
+      html += '</div>';
+    } else if (!isHerbal) {
+      html += '<p class="muted" style="margin-top:14px;">공식 경고문구가 확인되지 않았습니다. (미확인)</p>';
+    }
+
+    html += '</div>';
+    detailView.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.getElementById('legalToggle').addEventListener('click', () => {
+    const panel = document.getElementById('legalPanel');
+    const btn = document.getElementById('legalToggle');
+    const isOpen = !panel.hidden;
+    panel.hidden = isOpen;
+    btn.textContent = isOpen ? '법적 근거 자세히 보기' : '법적 근거 접기';
+  });
+</script>
+</body>
+</html>
