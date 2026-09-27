@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import SearchBar from './components/SearchBar';
+import PhotoSearch from './components/PhotoSearch';
 import ResultList from './components/ResultList';
 import DetailView from './components/DetailView';
 import LegalDisclaimer from './components/LegalDisclaimer';
@@ -68,6 +69,7 @@ export default function App() {
       </header>
 
       <SearchBar value={query} onChange={setQuery} />
+      <PhotoSearch onExtracted={(name) => setQuery(name)} />
       <ResultList
         results={results}
         loading={searchLoading}

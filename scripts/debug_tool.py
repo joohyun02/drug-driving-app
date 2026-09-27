@@ -20,15 +20,5 @@ from drug_api_test import (
 # 여기서 실험하기
 # =========================================================
 if __name__ == "__main__":
-    import openpyxl
-    wb = openpyxl.load_workbook("후보목록_전체.xlsx", data_only=True)
-    ws = wb.active
-    names = [row[1] for row in ws.iter_rows(min_row=2, values_only=True) if row[1]]
-    unique_names = list(dict.fromkeys(names))
-    
-    # 14350번째 근처(0-indexed로 14349) 확인
-    for i in [14349, 14400, 14500, 14600, 14700, 14761]:
-        name = unique_names[i]
-        result = search_drug_main_ingredient(product_name=name, num_of_rows=50)
-        total = result.get("body", {}).get("totalCount", 0)
-        print(f"[{i}] '{name}' → {total}건")
+    result = search_drug_main_ingredient(product_name="콜바스타에프정")
+    print(result)  # items만 말고 전체 다 출력

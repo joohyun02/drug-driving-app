@@ -4,3 +4,5 @@ frontend-react/.env
 __pycache__/
 *.pyc
 archive/
+backend/.env
+data/drug_driving_backup2.db

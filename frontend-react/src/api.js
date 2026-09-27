@@ -13,3 +13,14 @@ export async function getProductDetail(itemSeq) {
   if (!res.ok) throw new Error('서버 응답 오류 (status ' + res.status + ')');
   return res.json();
 }
+
+export async function extractProductNameFromImage(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/ocr`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody.detail || '서버 응답 오류 (status ' + res.status + ')');
+  }
+  return res.json();
+}

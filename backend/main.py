@@ -19,6 +19,16 @@
 import sqlite3
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import UploadFile, File
+import base64
+import os 
+from anthropic import Anthropic
+from dotenv import load_dotenv
+
+load_dotenv()  # .env 파일에서 환경변수 읽어오기
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+
 
 DB_PATH = "../data/drug_driving.db"
 
@@ -148,3 +158,55 @@ def get_product_detail(item_seq: str):
         "warning_text": product["warning_text"],
         "warning_source": product["warning_source"],
     }
+OCR_PROMPT = (
+    "이 이미지는 약 포장지, 알약판, 또는 처방전 사진입니다."
+    "사진에서 약의 정확한 제품명(상풍명)만 입력해주세요."
+    "제품명 말고 다른 설명은 절대 붙이지 말 것."
+    "약이 아니거나 제품명을 못 읽겠으면, 정확히 '인식실패' 라고만 출력할 것."
+)
+
+@app.post("/ocr")
+async def ocr_extract(file: UploadFile = File(...)):
+    """
+    업로드된 이미지에서 약의 제품명을 추출합니다.
+    (Anthropic API를 사용하여 OCR 및 텍스트 추출)
+    """
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise HTTPException(status_code=500, detail="서버 환경변수에 ANTHROPIC_API_KEY가 설정되어 있지 않습니다.")
+    image_bytes = await file.read()
+    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    media_type = file.content_type or "image/jpeg"
+
+    try:
+        response = anthropic_client.messages.create(
+            model = "claude-haiku-4-5-20251001",
+            max_tokens = 100,
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_base64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": OCR_PROMPT,
+                        },
+                    ],
+                }
+            ],
+
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"이미지 인식 중 오류: {e}")
+    extracted = response.content[0].text.strip()
+    if not extracted or extracted == "인식실패":
+        raise HTTPException(status_code=422, detail="사진에서 제품명을 인식하지 못했습니다.\n 다시 시도해주세요.")
+
+    return {"extracted_name": extracted}
